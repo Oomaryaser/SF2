@@ -3,6 +3,19 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 
+// دالة لتوليد UUID متوافقة مع المتصفح
+const generateUUID = (): string => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  // fallback للمتصفحات القديمة
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
+
 interface FormData {
   136: string; // الاسم
   137: string; // التسلسل
@@ -102,6 +115,10 @@ export default function Home() {
       return;
     }
 
+    // تحويل المستخدم فوراً لصفحة الشكر
+    setIsSubmitted(true);
+
+    // إعداد البيانات للإرسال
     const formDataToSend = new FormData();
 
     // إضافة البيانات النصية
@@ -116,47 +133,45 @@ export default function Home() {
       const file = formData[id as keyof FormData] as File | null;
       if (file) {
         const ext = file.name.split('.').pop() || '';
-        const newName = crypto.randomUUID() + (ext ? '.' + ext : '');
+        const newName = generateUUID() + (ext ? '.' + ext : '');
         const newFile = new File([file], newName, { type: file.type });
         formDataToSend.append(id.toString(), newFile);
       }
     });
 
-    try {
-      console.log('إرسال البيانات عبر API route محلي...');
-      
-      const response = await fetch('/api/submit-form', {
-        method: 'POST',
-        body: formDataToSend,
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        // إظهار صفحة النجاح
-        setIsSubmitted(true);
-        console.log('الرد من الخادم:', result);
+    // إرسال البيانات في الخلفية
+    setTimeout(async () => {
+      try {
+        console.log('إرسال البيانات في الخلفية...');
         
-        // إعادة تعيين النموذج
-        setFormData({
-          136: '',
-          137: '',
-          138: '',
-          139: null,
-          140: null,
-          141: null,
+        const response = await fetch('/api/submit-form', {
+          method: 'POST',
+          body: formDataToSend,
         });
+
+        const result = await response.json();
         
-        setErrors({});
-      } else {
-        const errorMessage = result.message || 'فشل في الإرسال';
-        alert(`خطأ: ${errorMessage}`);
-        console.error('خطأ في الإرسال:', result);
+        if (response.ok && result.success) {
+          console.log('تم الإرسال بنجاح:', result);
+        } else {
+          console.error('فشل في الإرسال:', result);
+        }
+      } catch (error) {
+        console.error('خطأ في الإرسال:', error);
       }
-    } catch (error) {
-      console.error('خطأ في الإرسال:', error);
-      alert('حدث خطأ أثناء إرسال الاستمارة. يرجى المحاولة مرة أخرى.');
-    }
+    }, 100); // تأخير بسيط للتأكد من عرض صفحة الشكر أولاً
+
+    // إعادة تعيين النموذج
+    setFormData({
+      136: '',
+      137: '',
+      138: '',
+      139: null,
+      140: null,
+      141: null,
+    });
+    
+    setErrors({});
   };
 
   // صفحة النجاح
